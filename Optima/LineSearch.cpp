@@ -77,7 +77,11 @@ struct LineSearch::Impl
             utrial = uo*(1 - alpha) + alpha*u;
             F.update(utrial);
             E.update(utrial, F);
-            return E.error();
+            // LOCAL ADDITION: E.error() masks out the optimality residual of
+            // unstable and at-bound basic variables, so minimizing it can be
+            // achieved by pushing variables onto their bounds instead of by
+            // real progress. errorRaw() is the same norm before that masking.
+            return options.use_unmasked_error ? E.errorRaw() : E.error();
         };
 
         const auto tol = options.tolerance;

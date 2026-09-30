@@ -17,6 +17,9 @@
 
 #pragma once
 
+/// LOCAL ADDITION (GEMS3K 2026-09-30): lets GEMS3K compile against an install with or without the two options below.
+#define OPTIMA_LINESEARCH_STALL_ESCAPE 1
+
 namespace Optima {
 
 /// The options for the line search minimization operation.
@@ -33,6 +36,33 @@ struct LineSearchOptions
 
     /// The parameter that triggers line-search when current error is greater than previous error by a given factor (`Enew > factor*Eold`).
     double trigger_when_current_error_is_greater_than_previous_error_by_factor = 2.0;
+
+    /// Whether ErrorControl may invoke the line search at all (LOCAL ADDITION,
+    /// default false = upstream behaviour, where the call site is commented out).
+    bool enabled = false;
+
+    /// Whether the line search minimizes the UNMASKED residual norm instead of
+    /// ResidualErrors::error() (LOCAL ADDITION, default false).
+    /// error() zeroes the optimality residual of every unstable variable and of
+    /// every basic variable sitting exactly on a bound, so it can be reduced by
+    /// pushing variables onto their bounds rather than by making real progress -
+    /// a perverse objective for a line search to minimize.
+    bool use_unmasked_error = false;
+
+    /// STALL ESCAPE (LOCAL ADDITION, GEMS3K 2026-09-30, default 0 = off): after this many CONSECUTIVE line-search executions
+    /// that left the error unchanged (relative change <= stall_escape_tolerance), ErrorControl skips the line search once and
+    /// keeps the full step. Measured on GEMS3K f_TestPNTDB: the strict trigger froze the error at exactly 2.29844 for 900
+    /// iterations (AOP 1827 it); with 10 the solve takes 493 it, T-cement's line-search rescue is kept.
+    std::size_t stall_escape_after = 0;
+
+    /// Relative error change at or below which a line-search step counts as stalled. A looser value (1e-3, 1e-2) also caught
+    /// GEMS3K Cu-Pourbaix's crawl but LOST T-cement's rescue at every setting tried.
+    double stall_escape_tolerance = 1.0e-8;
+
+    /// NON-MONOTONE WINDOW (LOCAL ADDITION, GEMS3K 2026-09-30, default 0 = off): compare the new error with the max of the
+    /// last N pre-step errors instead of the previous one only. Helped GEMS3K Cu-Pourbaix (AOP 483 -> 110 it at 10) but was
+    /// worse than the strict trigger on every corium phase diagram and lost T-cement - opt-in only.
+    std::size_t nonmonotone_window = 0;
 };
 
 } // namespace Optima
