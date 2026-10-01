@@ -31,21 +31,6 @@ struct BacktrackSearchOptions
     /// vector is not a descent direction, since the min-max fix alters its
     /// orientation.
     bool apply_min_max_fix_and_accept = false;
-
-    /// Relative step limit for `x`. When `r > 1`, the whole step is scaled down
-    /// so that no `x[i]` with `xo[i] > 0` leaves `[xo[i]/r, xo[i]*r]`; the step
-    /// direction is kept. 0.0 (default) = off.
-    /// In plain words: no amount may grow or shrink by more than a factor r in one step.
-    double max_step_ratio = 0.0;
-
-    /// Per-variable step control. When `f > 0`, a variable whose own
-    /// fraction-to-the-boundary factor is <= `f` does not limit the shared
-    /// factor `betamin`; each variable then moves by `min(own_beta, betamin)`,
-    /// and the duals `w` by `betamin`. The step direction is not kept, so the
-    /// linear equality constraints may be violated after the step.
-    /// 0.0 (default) = off.
-    /// In plain words: a variable stuck at its limit no longer shortens the step of all the others.
-    double min_common_beta = 0.0;
 };
 
 } // namespace Optima

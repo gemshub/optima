@@ -39,8 +39,6 @@ struct BacktrackSearch::Impl
     Vector plower;                   ///< The lower bounds for p.
     Vector pupper;                   ///< The upper bounds for p.
     Vector betas;                    ///< The beta factors for x and p
-    Vector betasx;                   ///< Per-variable beta factors for x (used when min_common_beta > 0).
-    Vector betasp;                   ///< Per-variable beta factors for p (used when min_common_beta > 0).
 
     Impl()
     {
@@ -54,83 +52,6 @@ struct BacktrackSearch::Impl
         plower = problem.plower;
         pupper = problem.pupper;
         unew.resize(dims);
-    }
-
-    /// Fraction-to-the-boundary factor for one component. Returns 1.0 when the
-    /// step keeps it within its bounds and, if apply_ratio, within [xo/r, xo*r].
-    /// In plain words: how much of the step this variable can take before hitting a limit.
-    auto componentBeta(double xo_i, double x_i, double lo_i, double hi_i, bool apply_ratio) const -> double
-    {
-        if(x_i == xo_i)
-            return 1.0;
-        auto beta = 1.0;
-        if(x_i > hi_i && xo_i < hi_i)
-            beta = min(beta, (hi_i - xo_i)/(x_i - xo_i));
-        else if(x_i < lo_i && xo_i > lo_i)
-            beta = min(beta, (lo_i - xo_i)/(x_i - xo_i));
-        if(apply_ratio && xo_i > 0.0)
-        {
-            const auto r = options.max_step_ratio;
-            const auto rlo = xo_i / r;
-            const auto rhi = xo_i * r;
-            if(x_i < rlo)
-                beta = min(beta, (rlo - xo_i)/(x_i - xo_i));
-            else if(x_i > rhi)
-                beta = min(beta, (rhi - xo_i)/(x_i - xo_i));
-        }
-        return beta;
-    }
-
-    /// Step control used when min_common_beta > 0: a variable whose own beta is
-    /// at or below min_common_beta does not set the shared betamin, and every
-    /// variable moves by min(own_beta, betamin).
-    /// In plain words: each variable takes the largest step it can without being held back by one stuck variable.
-    auto executePerVariableStep(MasterVectorView uo, MasterVectorRef u) -> void
-    {
-        auto const& xo = uo.x;
-        auto const& po = uo.p;
-        auto const& wo = uo.w;
-
-        const auto fmin = options.min_common_beta;
-        const auto apply_ratio = options.max_step_ratio > 1.0;
-
-        betasx.resize(dims.nx);
-        betasp.resize(dims.np);
-
-        auto betamin = 1.0;
-
-        for(auto i = 0; i < dims.nx; ++i)
-        {
-            const auto b = componentBeta(xo[i], u.x[i], xlower[i], xupper[i], apply_ratio);
-            betasx[i] = b;
-            if(b > fmin)
-                betamin = min(betamin, b);
-        }
-
-        for(auto i = 0; i < dims.np; ++i)
-        {
-            const auto b = componentBeta(po[i], u.p[i], plower[i], pupper[i], false);
-            betasp[i] = b;
-            if(b > fmin)
-                betamin = min(betamin, b);
-        }
-
-        for(auto i = 0; i < dims.nx; ++i)
-        {
-            const auto s = min(betasx[i], betamin);
-            u.x[i] = xo[i]*(1 - s) + s*u.x[i];
-        }
-
-        for(auto i = 0; i < dims.np; ++i)
-        {
-            const auto s = min(betasp[i], betamin);
-            u.p[i] = po[i]*(1 - s) + s*u.p[i];
-        }
-
-        u.w.noalias() = wo*(1 - betamin) + betamin*u.w;
-
-        u.x.noalias() = min(max(u.x, xlower), xupper);
-        u.p.noalias() = min(max(u.p, plower), pupper);
     }
 
     auto execute(MasterVectorView uo, MasterVectorRef u, ResidualFunction& F, ResidualErrors& E) -> void
@@ -148,12 +69,6 @@ struct BacktrackSearch::Impl
         {
             u.x.noalias() = min(max(u.x, xlower), xupper);
             u.p.noalias() = min(max(u.p, plower), pupper);
-            return;
-        }
-
-        if(options.min_common_beta > 0.0)
-        {
-            executePerVariableStep(uo, u);
             return;
         }
 
@@ -196,22 +111,6 @@ struct BacktrackSearch::Impl
                 betamin = min(betamin, (pupper[i] - po[i])/(p[i] - po[i]));
             else if(p[i] < plower[i] && po[i] > plower[i])
                 betamin = min(betamin, (plower[i] - po[i])/(p[i] - po[i]));
-        }
-
-        if(options.max_step_ratio > 1.0)
-        {
-            const auto r = options.max_step_ratio;
-            for(auto i = 0; i < dims.nx; ++i)
-            {
-                if(x[i] == xo[i] || xo[i] <= 0.0)
-                    continue;
-                const auto lo = xo[i] / r;
-                const auto hi = xo[i] * r;
-                if(x[i] < lo)
-                    betamin = min(betamin, (lo - xo[i])/(x[i] - xo[i]));
-                else if(x[i] > hi)
-                    betamin = min(betamin, (hi - xo[i])/(x[i] - xo[i]));
-            }
         }
 
         u = uo*(1 - betamin) + betamin*u;
