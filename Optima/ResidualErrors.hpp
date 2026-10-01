@@ -62,7 +62,7 @@ public:
     auto errorp() const -> double; ///< The error norm `max(|ep|)`.
     auto errorw() const -> double; ///< The error norm `max(|ew|)`.
     auto error() const -> double;  ///< The error norm `sqrt(||ex||^2 + ||ep||^2 + ||ew||^2)`.
-    auto errorRaw() const -> double; ///< LOCAL ADDITION: same norm computed BEFORE unstable/at-bound optimality errors are zeroed out.
+    auto errorRaw() const -> double; ///< The max-norm of the residuals before the optimality errors of unstable and at-bound variables are set to zero, i.e. the full error including variables sitting on a bound.
 };
 
 } // namespace Optima

@@ -39,8 +39,8 @@ struct BacktrackSearch::Impl
     Vector plower;                   ///< The lower bounds for p.
     Vector pupper;                   ///< The upper bounds for p.
     Vector betas;                    ///< The beta factors for x and p
-    Vector betasx;                   ///< Per-variable beta factors for x (ORCHESTRA mode).
-    Vector betasp;                   ///< Per-variable beta factors for p (ORCHESTRA mode).
+    Vector betasx;                   ///< Per-variable beta factors for x (used when min_common_beta > 0).
+    Vector betasp;                   ///< Per-variable beta factors for p (used when min_common_beta > 0).
 
     Impl()
     {
@@ -56,9 +56,9 @@ struct BacktrackSearch::Impl
         unew.resize(dims);
     }
 
-    /// Per-variable fraction-to-the-boundary factor for a single component.
-    /// Returns 1.0 when the component does not leave its box (and, when a
-    /// relative trust region is active, does not leave that either).
+    /// Fraction-to-the-boundary factor for one component. Returns 1.0 when the
+    /// step keeps it within its bounds and, if apply_ratio, within [xo/r, xo*r].
+    /// In plain words: how much of the step this variable can take before hitting a limit.
     auto componentBeta(double xo_i, double x_i, double lo_i, double hi_i, bool apply_ratio) const -> double
     {
         if(x_i == xo_i)
@@ -81,12 +81,11 @@ struct BacktrackSearch::Impl
         return beta;
     }
 
-    /// ORCHESTRA-style step control - see BacktrackSearchOptions::min_common_beta.
-    /// Two parts, both load-bearing: (1) a variable whose own beta is at or
-    /// below the threshold does not set the shared betamin, and (2) it is still
-    /// clamped to its own beta, i.e. every variable moves by
-    /// min(own_beta, betamin).
-    auto executeOrchestra(MasterVectorView uo, MasterVectorRef u) -> void
+    /// Step control used when min_common_beta > 0: a variable whose own beta is
+    /// at or below min_common_beta does not set the shared betamin, and every
+    /// variable moves by min(own_beta, betamin).
+    /// In plain words: each variable takes the largest step it can without being held back by one stuck variable.
+    auto executePerVariableStep(MasterVectorView uo, MasterVectorRef u) -> void
     {
         auto const& xo = uo.x;
         auto const& po = uo.p;
@@ -154,7 +153,7 @@ struct BacktrackSearch::Impl
 
         if(options.min_common_beta > 0.0)
         {
-            executeOrchestra(uo, u);
+            executePerVariableStep(uo, u);
             return;
         }
 
@@ -176,14 +175,8 @@ struct BacktrackSearch::Impl
             }
         }
 
-        // Diagnostic: which variable sets the shared `betamin`, and how small it gets.
-        // Off unless OPTIMA_BETA_PROBE names a file; the env lookup and fopen happen once,
-        // so the disabled path is a single null-pointer test per call.
-        //
-        // Measured on GEMS3K's seawater case (2026-09-01), 10 000 iterations: betamin NEVER
-        // reaches 1.0, median 1.7e-16, and 97 % of the sub-1e-6 values are set by a variable
-        // already sitting AT its lower bound whose Newton step points negative. One such
-        // variable annihilates the step for all of them, because betamin is a shared scalar.
+        // Diagnostic: if the OPTIMA_BETA_PROBE environment variable names a file, write
+        // betamin and the variable that sets it there on every call.
         {
             static FILE* bpf = [] {
                 const char* bp = std::getenv("OPTIMA_BETA_PROBE");

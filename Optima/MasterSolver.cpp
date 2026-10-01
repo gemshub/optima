@@ -163,21 +163,8 @@ struct MasterSolver::Impl
     auto stepping(MasterVectorRef u) -> bool
     {
         convergence.update(E);
-        // Convergence is checked BEFORE the iteration-budget check, not
-        // after: with the budget check first, the very last permitted
-        // iteration's step could already have converged (E already
-        // reflects the post-step state at this point) and still be
-        // reported as "Max iterations reached", never getting the chance
-        // to test converged() at all. Confirmed a real, reproducible
-        // instance of this on GEMS3K's own Optima-based equilibrium
-        // solver (a downstream consumer of this checkout) - a case whose
-        // true residual (E.error()) was already ~1e-15 kept reporting
-        // succeeded=false/"Max iterations reached" solely because the
-        // budget check ran first. This reordering only changes behavior
-        // exactly at the last allowed iteration, and only ever turns a
-        // false failure into a correct success - it cannot make an
-        // already-converged case fail, nor make a genuinely non-converged
-        // case (whose error is still above tolerance) succeed.
+        // Convergence is checked before the iteration limit, so a step that
+        // converges on the last allowed iteration is reported as converged.
         ConvergenceCheckArgs args{dims, F, E, uo, u, result};
         converged = convergence.converged(args);
         uo = u;

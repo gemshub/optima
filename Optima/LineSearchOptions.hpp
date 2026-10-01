@@ -17,7 +17,7 @@
 
 #pragma once
 
-/// LOCAL ADDITION (GEMS3K 2026-09-30): lets GEMS3K compile against an install with or without the two options below.
+/// Defined when LineSearchOptions has stall_escape_after and reject_if_worse, so client code can test for them.
 #define OPTIMA_LINESEARCH_STALL_ESCAPE 1
 #define OPTIMA_LINESEARCH_REJECT_WORSE 1
 
@@ -38,38 +38,32 @@ struct LineSearchOptions
     /// The parameter that triggers line-search when current error is greater than previous error by a given factor (`Enew > factor*Eold`).
     double trigger_when_current_error_is_greater_than_previous_error_by_factor = 2.0;
 
-    /// Whether ErrorControl may invoke the line search at all (LOCAL ADDITION,
-    /// default false = upstream behaviour, where the call site is commented out).
+    /// Whether ErrorControl runs the line search (default false = never).
+    /// In plain words: allow the solver to try a shorter step when a full step makes things worse.
     bool enabled = false;
 
-    /// Whether the line search minimizes the UNMASKED residual norm instead of
-    /// ResidualErrors::error() (LOCAL ADDITION, default false).
-    /// error() zeroes the optimality residual of every unstable variable and of
-    /// every basic variable sitting exactly on a bound, so it can be reduced by
-    /// pushing variables onto their bounds rather than by making real progress -
-    /// a perverse objective for a line search to minimize.
+    /// Whether the line search minimizes ResidualErrors::errorRaw() instead of error() (default false).
+    /// In plain words: judge progress by the full error, including the parts error() hides
+    /// for variables sitting on a bound.
     bool use_unmasked_error = false;
 
-    /// STALL ESCAPE (LOCAL ADDITION, GEMS3K 2026-09-30, default 0 = off): after this many CONSECUTIVE line-search executions
-    /// that left the error unchanged (relative change <= stall_escape_tolerance), ErrorControl skips the line search once and
-    /// keeps the full step. Measured on GEMS3K f_TestPNTDB: the strict trigger froze the error at exactly 2.29844 for 900
-    /// iterations (AOP 1827 it); with 10 the solve takes 493 it, T-cement's line-search rescue is kept.
+    /// After this many consecutive line searches that leave the error unchanged
+    /// (relative change <= stall_escape_tolerance), skip the line search once and keep the
+    /// full step (default 0 = off).
+    /// In plain words: if the shorter steps keep getting nowhere, take one full step to break out.
     std::size_t stall_escape_after = 0;
 
-    /// Relative error change at or below which a line-search step counts as stalled. A looser value (1e-3, 1e-2) also caught
-    /// GEMS3K Cu-Pourbaix's crawl but LOST T-cement's rescue at every setting tried.
+    /// Relative error change at or below which a line search counts as making no progress.
     double stall_escape_tolerance = 1.0e-8;
 
-    /// NON-MONOTONE WINDOW (LOCAL ADDITION, GEMS3K 2026-09-30, default 0 = off): compare the new error with the max of the
-    /// last N pre-step errors instead of the previous one only. Helped GEMS3K Cu-Pourbaix (AOP 483 -> 110 it at 10) but was
-    /// worse than the strict trigger on every corium phase diagram and lost T-cement - opt-in only.
+    /// Compare the new error with the largest of the last N pre-step errors instead of
+    /// the previous one only (default 0 = off).
+    /// In plain words: allow the error to go up for a few steps before treating a step as bad.
     std::size_t nonmonotone_window = 0;
 
-    /// REJECT IF WORSE (LOCAL ADDITION, GEMS3K 2026-09-30, default false = off): when a line search ends with an error NOT
-    /// below the pre-step error, discard its result and keep the full step. Measured on GEMS3K (AOP, line search 1.5, stall
-    /// escape 10): Cu-Pourbaix fired 341 line searches of which 329 ended ABOVE the pre-step error (a crawl the stall escape
-    /// cannot see - each moves the error by ~0.3 %, in the wrong direction); with the rule 489 -> 149 it, j_Solvus 153 -> 104,
-    /// same G; corium diagrams neutral on answers.
+    /// If a line search ends with an error not below the pre-step error, discard it and keep
+    /// the full step (default false = off).
+    /// In plain words: if the shorter step did not help, use the full step after all.
     bool reject_if_worse = false;
 };
 

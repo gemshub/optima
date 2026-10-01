@@ -37,10 +37,10 @@ struct ErrorControl::Impl
     Impl()
     {}
 
-    ErrorControlOptions options; ///< LOCAL ADDITION: kept so execute() can read the line-search trigger.
+    ErrorControlOptions options; ///< The options for the error control.
 
-    std::vector<double> errhist;     ///< LOCAL ADDITION: pre-step errors for linesearch.nonmonotone_window
-    std::size_t stallCount = 0;      ///< LOCAL ADDITION: consecutive zero-progress line searches (linesearch.stall_escape_after)
+    std::vector<double> errhist;     ///< The last pre-step errors (linesearch.nonmonotone_window).
+    std::size_t stallCount = 0;      ///< Consecutive line searches that did not change the error (linesearch.stall_escape_after).
 
     auto setOptions(const ErrorControlOptions& opts) -> void
     {
@@ -61,39 +61,23 @@ struct ErrorControl::Impl
 
     auto execute(MasterVectorView uo, MasterVectorRef u, ResidualFunction& F, ResidualErrors& E) -> void
     {
-        // LOCAL ADDITION: when the line search is asked to minimize the
-        // unmasked residual norm, the TRIGGER must read the same quantity.
-        // Measured (GEMS3K/CLAUDE.md 2026-08-25): with the trigger on
-        // E.error(), no project in the GEMS3K suite ever fires the line search
-        // at any factor >= 1, because the masked error essentially never grows
-        // between iterations - it can be reduced by pushing variables onto
-        // their bounds, which is exactly what makes it a poor merit function.
+        // The line-search trigger uses the same error measure the line search minimizes.
         const auto use_raw = options.linesearch.enabled && options.linesearch.use_unmasked_error;
 
         const auto error_prev = use_raw ? E.errorRaw() : E.error();
 
         backtracksearch.execute(uo, u, F, E);
 
-        // LOCAL FIX (GEMS3K plan v5 s139.6, 2026-09-28, owner-approved): nothing between error_prev and here
-        // updates E - BacktrackSearch changes only u, and MasterSolver::step() calls F.update/E.update only
-        // AFTER this function - so error_new used to equal error_prev and the trigger compared a number with
-        // itself (never fires at a factor >= 1; fires every step with a bare >=). When the line search is
-        // enabled, evaluate the error at the new point so the comparison is real. Disabled (the default),
-        // nothing here runs and the solver is unchanged. The extra evaluation is not side-effect free in
-        // GEMS3K's objective, which is why it is confined to the enabled case.
+        // With the line search enabled, evaluate the error at the new point; otherwise
+        // error_new would still be the pre-step error.
         if(options.linesearch.enabled) { F.update(u); E.update(u, F); }
 
         const auto error_new = use_raw ? E.errorRaw() : E.error();
 
-        // LOCAL ADDITION. Upstream ships this call commented out; LineSearch.cpp
-        // is nonetheless fully implemented, and LineSearchOptions carries two
-        // trigger-factor fields that nothing reads - which suggests the intended
-        // trigger was the factor below, not the bare `error_new >= error_prev`
-        // the commented-out line uses. Enabling that bare form was measured to be
-        // a severe regression (GEMS3K/CLAUDE.md 2026-08-25), so this stays opt-in
-        // (options.linesearch.enabled, default false = upstream behaviour) and
-        // uses the factor.
-        // LOCAL ADDITION (GEMS3K 2026-09-30): optional non-monotone reference - max of the last N pre-step errors.
+        // Run the line search when the new error exceeds the reference error by the trigger factor.
+        // The reference is the pre-step error, or the max of the last N pre-step errors if
+        // nonmonotone_window = N > 0.
+        // In plain words: if the full step made the error clearly worse, try a shorter step.
         double error_ref = error_prev;
         const auto nmN = options.linesearch.nonmonotone_window;
         if( nmN > 0 )
@@ -106,15 +90,13 @@ struct ErrorControl::Impl
         if( options.linesearch.enabled &&
             error_new > options.linesearch.trigger_when_current_error_is_greater_than_previous_error_by_factor * error_ref )
         {
-            // LOCAL ADDITION (GEMS3K 2026-09-30): stall escape - after stallK consecutive zero-progress line searches keep
-            // the full step once (F and E are already evaluated at u above).
+            // After stallK consecutive line searches that did not change the error, keep the full step once.
             if( stallK > 0 && stallCount >= stallK )
             {
                 stallCount = 0;
                 return;
             }
-            // LOCAL ADDITION (GEMS3K 2026-09-30): reject_if_worse - a line search that ends at or above the pre-step error
-            // is discarded in favour of the full step.
+            // reject_if_worse: if the line search ends at or above the pre-step error, keep the full step instead.
             MasterVector ufull;
             if( options.linesearch.reject_if_worse ) ufull = u;
             linesearch.execute(uo, u, F, E);

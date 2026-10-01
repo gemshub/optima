@@ -31,3 +31,5 @@ __pycache__/
 .history
 .cache
 compile_commands.json
+
+install*

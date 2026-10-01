@@ -40,7 +40,7 @@ struct ResidualErrors::Impl
     double errorp = 0.0; ///< The maximum residual error associated with the external constraint equations.
     double errorw = 0.0; ///< The maximum residual error associated with the linear and non-linear constraint equations in canonical form.
     double error  = 0.0; ///< The error norm sqrt(||ex||^2 + ||ep||^2 + ||ew||^2).
-    double errorRaw = 0.0; ///< LOCAL ADDITION: same norm, computed before masking.
+    double errorRaw = 0.0; ///< The error norm max(|ex|, |ep|, |ewbar|) before masking.
 
     Impl()
     {}
@@ -91,8 +91,7 @@ struct ResidualErrors::Impl
         ewbs = abs(Fc.wbs);
         ewbl.fill(0.0);
 
-        // LOCAL ADDITION: capture the norm BEFORE any masking, for use as an
-        // honest line-search merit function (see LineSearchOptions::use_unmasked_error).
+        // Error norm before unstable and at-bound variables are masked below.
         errorRaw = std::max({norminf(ex), norminf(ep), norminf(ewbar)});
 
         // Ensure currently unstable x variables have zero optimality errors.
