@@ -39,7 +39,6 @@ struct ErrorControl::Impl
 
     ErrorControlOptions options; ///< The options for the error control.
 
-    std::vector<double> errhist;     ///< The last pre-step errors (linesearch.nonmonotone_window).
     std::size_t stallCount = 0;      ///< Consecutive line searches that did not change the error (linesearch.stall_escape_after).
 
     auto setOptions(const ErrorControlOptions& opts) -> void
@@ -52,7 +51,6 @@ struct ErrorControl::Impl
 
     auto initialize(const MasterProblem& problem) -> void
     {
-        errhist.clear();
         stallCount = 0;
         errorstatus.initialize();
         backtracksearch.initialize(problem);
@@ -74,21 +72,11 @@ struct ErrorControl::Impl
 
         const auto error_new = use_raw ? E.errorRaw() : E.error();
 
-        // Run the line search when the new error exceeds the reference error by the trigger factor.
-        // The reference is the pre-step error, or the max of the last N pre-step errors if
-        // nonmonotone_window = N > 0.
+        // Run the line search when the new error exceeds the pre-step error by the trigger factor.
         // In plain words: if the full step made the error clearly worse, try a shorter step.
-        double error_ref = error_prev;
-        const auto nmN = options.linesearch.nonmonotone_window;
-        if( nmN > 0 )
-        {
-            errhist.push_back(error_prev);
-            if( errhist.size() > nmN ) errhist.erase(errhist.begin());
-            for( double e : errhist ) error_ref = std::max(error_ref, e);
-        }
         const auto stallK = options.linesearch.stall_escape_after;
         if( options.linesearch.enabled &&
-            error_new > options.linesearch.trigger_when_current_error_is_greater_than_previous_error_by_factor * error_ref )
+            error_new > options.linesearch.trigger_when_current_error_is_greater_than_previous_error_by_factor * error_prev )
         {
             // After stallK consecutive line searches that did not change the error, keep the full step once.
             if( stallK > 0 && stallCount >= stallK )

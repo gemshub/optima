@@ -56,11 +56,6 @@ struct LineSearchOptions
     /// Relative error change at or below which a line search counts as making no progress.
     double stall_escape_tolerance = 1.0e-8;
 
-    /// Compare the new error with the largest of the last N pre-step errors instead of
-    /// the previous one only (default 0 = off).
-    /// In plain words: allow the error to go up for a few steps before treating a step as bad.
-    std::size_t nonmonotone_window = 0;
-
     /// If a line search ends with an error not below the pre-step error, discard it and keep
     /// the full step (default false = off).
     /// In plain words: if the shorter step did not help, use the full step after all.
