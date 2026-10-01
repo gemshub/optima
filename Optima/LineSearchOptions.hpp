@@ -19,6 +19,7 @@
 
 /// LOCAL ADDITION (GEMS3K 2026-09-30): lets GEMS3K compile against an install with or without the two options below.
 #define OPTIMA_LINESEARCH_STALL_ESCAPE 1
+#define OPTIMA_LINESEARCH_REJECT_WORSE 1
 
 namespace Optima {
 
@@ -63,6 +64,13 @@ struct LineSearchOptions
     /// last N pre-step errors instead of the previous one only. Helped GEMS3K Cu-Pourbaix (AOP 483 -> 110 it at 10) but was
     /// worse than the strict trigger on every corium phase diagram and lost T-cement - opt-in only.
     std::size_t nonmonotone_window = 0;
+
+    /// REJECT IF WORSE (LOCAL ADDITION, GEMS3K 2026-09-30, default false = off): when a line search ends with an error NOT
+    /// below the pre-step error, discard its result and keep the full step. Measured on GEMS3K (AOP, line search 1.5, stall
+    /// escape 10): Cu-Pourbaix fired 341 line searches of which 329 ended ABOVE the pre-step error (a crawl the stall escape
+    /// cannot see - each moves the error by ~0.3 %, in the wrong direction); with the rule 489 -> 149 it, j_Solvus 153 -> 104,
+    /// same G; corium diagrams neutral on answers.
+    bool reject_if_worse = false;
 };
 
 } // namespace Optima

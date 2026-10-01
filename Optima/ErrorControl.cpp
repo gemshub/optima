@@ -113,7 +113,17 @@ struct ErrorControl::Impl
                 stallCount = 0;
                 return;
             }
+            // LOCAL ADDITION (GEMS3K 2026-09-30): reject_if_worse - a line search that ends at or above the pre-step error
+            // is discarded in favour of the full step.
+            MasterVector ufull;
+            if( options.linesearch.reject_if_worse ) ufull = u;
             linesearch.execute(uo, u, F, E);
+            if( options.linesearch.reject_if_worse && ( use_raw ? E.errorRaw() : E.error() ) >= error_prev )
+            {
+                u = ufull;
+                F.update(u);
+                E.update(u, F);
+            }
             if( stallK > 0 )
             {
                 const auto error_ls = use_raw ? E.errorRaw() : E.error();
