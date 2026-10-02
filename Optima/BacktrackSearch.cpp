@@ -90,8 +90,19 @@ struct BacktrackSearch::Impl
             }
         }
 
+        for(auto i = 0; i < dims.np; ++i)
+        {
+            if(p[i] == po[i])
+                continue;
+            if(p[i] > pupper[i] && po[i] < pupper[i])
+                { const auto b = (pupper[i] - po[i])/(p[i] - po[i]); if(b < betamin) { betamin = b; probeArg = -2; probeXo = po[i]; probeXn = p[i]; probeBound = pupper[i]; } }
+            else if(p[i] < plower[i] && po[i] > plower[i])
+                { const auto b = (plower[i] - po[i])/(p[i] - po[i]); if(b < betamin) { betamin = b; probeArg = -2; probeXo = po[i]; probeXn = p[i]; probeBound = plower[i]; } }
+        }
+
         // Diagnostic: if the OPTIMA_BETA_PROBE environment variable names a file, write
-        // betamin and the variable that sets it there on every call.
+        // the final betamin and the variable that sets it there on every call
+        // (argmin -1: no limit, -2: a p variable, xo/xnew/bound then refer to it).
         {
             static FILE* bpf = [] {
                 const char* bp = std::getenv("OPTIMA_BETA_PROBE");
@@ -101,16 +112,6 @@ struct BacktrackSearch::Impl
                 fprintf(bpf, "betamin %.6e argmin %d xo %.6e xnew %.6e bound %.6e\n",
                         betamin, probeArg, probeXo, probeXn, probeBound);
             }
-        }
-
-        for(auto i = 0; i < dims.np; ++i)
-        {
-            if(p[i] == po[i])
-                continue;
-            if(p[i] > pupper[i] && po[i] < pupper[i])
-                betamin = min(betamin, (pupper[i] - po[i])/(p[i] - po[i]));
-            else if(p[i] < plower[i] && po[i] > plower[i])
-                betamin = min(betamin, (plower[i] - po[i])/(p[i] - po[i]));
         }
 
         u = uo*(1 - betamin) + betamin*u;

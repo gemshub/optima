@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <cstddef>
+
 /// Defined when LineSearchOptions has stall_escape_after and reject_if_worse, so client code can test for them.
 #define OPTIMA_LINESEARCH_STALL_ESCAPE 1
 #define OPTIMA_LINESEARCH_REJECT_WORSE 1

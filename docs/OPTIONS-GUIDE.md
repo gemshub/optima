@@ -75,7 +75,6 @@ Off by default.
 | `tolerance`, `maxiterations` | 1e-5, 20 | Precision and effort of each line search. |
 | `stall_escape_after` | 0 (off) | If several line searches in a row get nowhere, take one full step to break out. Helps when the solve freezes at a constant error. |
 | `stall_escape_tolerance` | 1e-8 | How small a change counts as "getting nowhere". |
-| `nonmonotone_window` | 0 (off) | Allow the error to rise for a few steps before it counts as worse. Can speed up slow, zig-zagging solves; can also make others less reliable. |
 | `reject_if_worse` | false | If the shorter step did not help either, use the full step. Helps when the line search keeps making tiny steps in the wrong direction. |
 
 Line-search options can be tested from the code with the macros `OPTIMA_LINESEARCH_STALL_ESCAPE`
@@ -89,7 +88,7 @@ change the result in this version.
 
 ## Diagnostics
 
-- Set the environment variable `OPTIMA_BETA_PROBE` to a file name to log, for every step, the
+- Set the environment variable `OPTIMA_BETA_PROBE` to a file name to log, for every step, the final
   common step factor and the variable that limited it. Use it when a solve makes almost no
   progress per iteration.
 - When the library loads, it prints `[Optima] LOCAL MODIFIED BUILD loaded` to stderr, so you can
