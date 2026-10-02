@@ -163,12 +163,16 @@ struct MasterSolver::Impl
     auto stepping(MasterVectorRef u) -> bool
     {
         convergence.update(E);
-        if(result.iterations > options.maxiters)
-            return STOP;
+        // Convergence is checked before the iteration limit, so the final step that
+        // the limit allows (iterations == maxiters + 1) is reported as converged if it is.
         ConvergenceCheckArgs args{dims, F, E, uo, u, result};
         converged = convergence.converged(args);
         uo = u;
-        return converged ? STOP : CONTINUE;
+        if(converged)
+            return STOP;
+        if(result.iterations > options.maxiters)
+            return STOP;
+        return CONTINUE;
     }
 
     auto step(MasterVectorRef u) -> void
