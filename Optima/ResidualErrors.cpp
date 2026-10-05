@@ -103,8 +103,10 @@ struct ResidualErrors::Impl
         // variables attached to their bounds are zeroed out below.
 
         // Ensure basic variables on the bounds have zero optimality error
-        ex(jbs) = (xbs.array() == xbslower.array()).select(0.0, ex(jbs));
-        ex(jbs) = (xbs.array() == xbsupper.array()).select(0.0, ex(jbs));
+        // (A plain loop: `select` over index views reads freed memory in Eigen 5.)
+        for(Index i = 0; i < nbs; ++i)
+            if(xbs[i] == xbslower[i] || xbs[i] == xbsupper[i])
+                ex[jbs[i]] = 0.0;
 
         errorx = norminf(ex);
         errorp = norminf(ep);

@@ -9,7 +9,7 @@
 #ifndef EIGEN_EIGENXFUNCTIONS_H
 #define EIGEN_EIGENXFUNCTIONS_H
 
-#if EIGEN_HAS_CXX11
+#if __cplusplus >= 201103L // EIGEN_HAS_CXX11 is gone in Eigen 5
 
 namespace Eigen {
 
