@@ -9,7 +9,8 @@
 #ifndef EIGEN_EIGENXFUNCTIONS_H
 #define EIGEN_EIGENXFUNCTIONS_H
 
-#if __cplusplus >= 201103L // EIGEN_HAS_CXX11 is gone in Eigen 5
+// MSVC reports __cplusplus as 199711L unless /Zc:__cplusplus is given, so _MSVC_LANG is checked too
+#if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 
 namespace Eigen {
 
