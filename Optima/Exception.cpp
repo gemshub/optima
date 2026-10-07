@@ -40,9 +40,18 @@ auto warningState() -> WarningState&
 
 auto setWarningHandler(WarningHandler handler) -> void
 {
+    // Build the new handler before locking, and let the displaced one be destroyed after unlocking: destroying it can
+    // run user code (the destructor of something the handler captured) that calls setWarningHandler again, which
+    // would deadlock on the mutex if it ran inside the lock.
+    std::shared_ptr<const WarningHandler> replacement =
+        handler ? std::make_shared<const WarningHandler>(std::move(handler)) : nullptr;
+
     auto& state = warningState();
-    std::lock_guard<std::mutex> lock(state.mutex);
-    state.handler = handler ? std::make_shared<const WarningHandler>(std::move(handler)) : nullptr;
+    {
+        std::lock_guard<std::mutex> lock(state.mutex);
+        state.handler.swap(replacement);
+    }
+    // `replacement` now holds the previous handler; it is released here, outside the lock
 }
 
 namespace internal {
