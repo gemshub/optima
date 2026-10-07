@@ -17,9 +17,18 @@
 
 #pragma once
 
+// Eigen 5 no longer includes this itself
+#include <cassert>
+
 // Eigen includes
 #include <Eigen/Core>
 #include <Eigen/LU>
+
+// Eigen 5 keeps `all` in Eigen::placeholders; Eigen 3.4 has it in Eigen directly
+#if EIGEN_MAJOR_VERSION >= 5
+namespace Eigen { using placeholders::all; }
+#endif
+
 #include <Optima/deps/eigenx/Eigen/Functions>
 #include <Optima/deps/eigenx/Eigen/Types>
 
