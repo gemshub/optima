@@ -24,6 +24,7 @@
 #include <Optima/IndexUtils.hpp>
 #include <Optima/ResidualVector.hpp>
 #include <Optima/Timing.hpp>
+#include <Optima/Trace.hpp>
 #include <Optima/Utils.hpp>
 
 namespace Optima {
@@ -112,6 +113,7 @@ struct ResidualFunction::Impl
 
     auto update(MasterVectorView u) -> void
     {
+        if(trace::file()) trace::state().fupdates += 1;
         sanitycheck(u);
         succeeded = updateFunctionEvals(u); // currently, even if succeeded==false, let the remaining lines be executed, otherwise result() fails (at least in Windows).
         updateEchelonFormMatrixW(u);
