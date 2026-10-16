@@ -20,6 +20,9 @@
 // Optima includes
 #include <Optima/Exception.hpp>
 #include <Optima/LinearSolver.hpp>
+#include <Optima/Trace.hpp>
+
+#include <cmath>
 
 namespace Optima {
 
@@ -28,6 +31,7 @@ struct NewtonStep::Impl
     MasterDims dims;           ///< The dimensions of the master variables.
     LinearSolver linearsolver; ///< The linear solver for the master matrix equations.
     MasterVector du;           ///< The Newton step for master variables u = (x, p, w).
+    LinearSolverMethod method = LinearSolverMethod::Nullspace; ///< The linear solver method in use.
     Vector xlower;             ///< The lower bounds for variables *x*.
     Vector xupper;             ///< The upper bounds for variables *x*.
     Vector plower;             ///< The lower bounds for variables *p*.
@@ -39,6 +43,7 @@ struct NewtonStep::Impl
     auto setOptions(const NewtonStepOptions options) -> void
     {
         linearsolver.setOptions(options.linearsolver);
+        method = options.linearsolver.method;
     }
 
     auto initialize(const MasterProblem& problem) -> void
@@ -59,6 +64,21 @@ struct NewtonStep::Impl
         const auto Fc = res.Fc;
         linearsolver.decompose(Jc);
         linearsolver.solve(Jc, Fc, du);
+
+        if(auto* fp = trace::file())
+        {
+            // The Newton step: method and the largest change in x, p and w.
+            Index idu = 0;
+            double nx = 0.0;
+            for(Index i = 0; i < du.x.size(); ++i)
+                if(std::abs(du.x[i]) > nx) { nx = std::abs(du.x[i]); idu = i; }
+            const double np = du.p.size() ? du.p.cwiseAbs().maxCoeff() : 0.0;
+            const double nw = du.w.size() ? du.w.cwiseAbs().maxCoeff() : 0.0;
+            const char* m = method == LinearSolverMethod::Nullspace ? "nullspace" : method == LinearSolverMethod::Rangespace ? "rangespace" : "fullspace";
+            fprintf(fp, "NEWTON solve=%ld attempt=%d it=%ld method=%s ndu_x=%.6e ndu_p=%.6e ndu_w=%.6e idu=%ld\n",
+                trace::state().solve, trace::state().attempt, trace::state().iter, m, nx, np, nw, (long)idu);
+            fflush(fp);
+        }
         u.x.noalias() = uo.x + du.x;
         u.p.noalias() = uo.p + du.p;
         u.w.noalias() = uo.w + du.w;

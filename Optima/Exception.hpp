@@ -19,6 +19,7 @@
 
 // C++ includes
 #include <exception>
+#include <functional>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -57,12 +58,27 @@ auto str(Args... items) -> std::string
 
 } // namespace internal
 
+/// The type of a function that receives the text of an Optima warning (without the "OPTIMA WARNING" tag).
+using WarningHandler = std::function<void(const std::string&)>;
+
+/// Replace what happens to Optima warnings. The default handler prints them to `std::cout`.
+/// Pass an empty function to restore the default; pass `[](const std::string&){}` to silence them.
+/// The handler may be called from any thread that runs the solver.
+auto setWarningHandler(WarningHandler handler) -> void;
+
+namespace internal {
+
+/// Deliver a warning message to the current warning handler.
+auto emitWarning(const std::string& message) -> void;
+
+} // namespace internal
+
 /// Issue a warning message if condition is true.
 template<typename... Args>
 auto warning(bool condition, Args... items) -> void
 {
     if(condition)
-        std::cout << "\033[1;33m***OPTIMA WARNING***\033[0m " << internal::str(items...) << "\n";
+        internal::emitWarning(internal::str(items...));
 }
 
 /// Raise a runtime error if condition is true.
@@ -82,7 +98,7 @@ auto error(bool condition, Args... items) -> void
 #define warningif(condition, ...) \
     { \
         if((condition)) { \
-            std::cout << "\033[1;33m***OPTIMA WARNING***\033[0m " << internal::str(__VA_ARGS__) << "\n"; \
+            ::Optima::internal::emitWarning(internal::str(__VA_ARGS__)); \
         } \
     }
 
