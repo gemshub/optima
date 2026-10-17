@@ -331,6 +331,11 @@ auto LinearSolverNullspace::operator=(LinearSolverNullspace other) -> LinearSolv
     return *this;
 }
 
+auto LinearSolverNullspace::setOptions(const LinearSolverOptions& options) -> void
+{
+    pimpl->lu.setPartialMinSize(options.lu_partial_min_size);
+}
+
 auto LinearSolverNullspace::decompose(CanonicalMatrix M) -> void
 {
     pimpl->decompose(M);

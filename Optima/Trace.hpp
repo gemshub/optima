@@ -23,6 +23,8 @@ struct State
     bool auto_attempt = false; ///< When set, each Optima solve started within one traced solve counts as the next attempt.
     int solves_in_call = 0;    ///< The Optima solves started since beginSolve().
     long snaps = 0;            ///< Variables put on their lower bound by snap_leaving_after (counted always).
+    long lupartial = 0;        ///< Solves done with the partial-pivot LU (counted always).
+    long lufallbacks = 0;      ///< Partial-pivot solves redone with full pivoting (counted always).
 };
 
 /// The shared counters.
