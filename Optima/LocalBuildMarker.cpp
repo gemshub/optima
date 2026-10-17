@@ -1,5 +1,7 @@
 // Prints a line to stderr when the library is loaded, to show that this
 // modified Optima build is the one in use and not a stock one.
+// Only in builds made with -DOPTIMA_LOAD_MARKER=ON; release builds stay quiet.
+#ifdef OPTIMA_LOAD_MARKER
 #include <cstdio>
 
 namespace {
@@ -14,3 +16,4 @@ struct LocalBuildMarker
 };
 LocalBuildMarker g_localBuildMarker;
 }
+#endif

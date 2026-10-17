@@ -25,6 +25,10 @@ option(OPTIMA_BUILD_PYTHON "Build the python wrappers." ON)
 option(OPTIMA_BUILD_DOCS   "Build documentation." OFF)
 option(OPTIMA_BUILD_BENCH  "Build benchmarks." OFF)
 option(OPTIMA_BUILD_ALL    "Build everything." OFF)
+option(OPTIMA_LOAD_MARKER  "Print a line on stderr when the library is loaded." OFF)
+if(OPTIMA_LOAD_MARKER)
+    add_compile_definitions(OPTIMA_LOAD_MARKER)
+endif()
 
 # Define if shared library should be build instead of static.
 option(BUILD_SHARED_LIBS "Build shared libraries." ON)
