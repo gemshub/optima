@@ -41,6 +41,9 @@ struct BacktrackSearch::Impl
     Vector plower;                   ///< The lower bounds for p.
     Vector pupper;                   ///< The upper bounds for p.
     Vector betas;                    ///< The beta factors for x and p
+    long leaveArg = -1;              ///< The x variable that limited the last steps on its way to its lower bound.
+    long leaveStreak = 0;            ///< How many steps in a row it did.
+    long lastSnap = -1;              ///< The variable put on its bound by the last step, or -1.
 
     Impl()
     {
@@ -49,6 +52,7 @@ struct BacktrackSearch::Impl
     auto initialize(const MasterProblem& problem) -> void
     {
         dims   = problem.dims;
+        leaveArg = -1; leaveStreak = 0;
         xlower = problem.xlower;
         xupper = problem.xupper;
         plower = problem.plower;
@@ -104,6 +108,38 @@ struct BacktrackSearch::Impl
                 { const auto b = (plower[i] - po[i])/(p[i] - po[i]); if(b < betamin) { betamin = b; probeArg = -2; probeXo = po[i]; probeXn = p[i]; probeBound = plower[i]; } }
         }
 
+        // A variable that limited the step options.snap_leaving_after times in a row on its way to its lower
+        // bound, with a target well below it, is put on the bound; the step is then limited by the others.
+        const long snapK = options.snap_leaving_after;
+        long snapI = -1;
+        lastSnap = -1;
+        if(snapK > 0)
+        {
+            const bool leaving = probeArg >= 0 && probeBound == xlower[probeArg] && (probeXo - probeXn) > 2.0*(probeXo - probeBound);
+            if(leaving) { leaveStreak = (probeArg == leaveArg) ? leaveStreak + 1 : 1; leaveArg = probeArg; }
+            else { leaveStreak = 0; leaveArg = -1; }
+            if(leaving && leaveStreak >= snapK)
+            {
+                snapI = probeArg; leaveStreak = 0; leaveArg = -1;
+                betamin = 1.0; probeArg = -1;
+                for(auto i = 0; i < dims.nx; ++i)
+                {
+                    if(i == snapI || x[i] == xo[i]) continue;
+                    if(x[i] > xupper[i] && xo[i] < xupper[i]) betamin = std::min(betamin, (xupper[i] - xo[i])/(x[i] - xo[i]));
+                    else if(x[i] < xlower[i] && xo[i] > xlower[i]) betamin = std::min(betamin, (xlower[i] - xo[i])/(x[i] - xo[i]));
+                }
+                for(auto i = 0; i < dims.np; ++i)
+                {
+                    if(p[i] == po[i]) continue;
+                    if(p[i] > pupper[i] && po[i] < pupper[i]) betamin = std::min(betamin, (pupper[i] - po[i])/(p[i] - po[i]));
+                    else if(p[i] < plower[i] && po[i] > plower[i]) betamin = std::min(betamin, (plower[i] - po[i])/(p[i] - po[i]));
+                }
+                trace::state().snaps++;
+                if(trace::file()) fprintf(trace::file(), "SNAP solve=%ld it=%ld arg=%ld xo=%.6e betamin=%.6e\n",
+                                          trace::state().solve, trace::state().iter, snapI, probeXo, betamin);
+            }
+        }
+
         // Diagnostic: if the OPTIMA_BETA_PROBE environment variable names a file, write
         // the final betamin and the variable that sets it there on every call
         // (argmin -1: no limit, -2: a p variable, xo/xnew/bound then refer to it).
@@ -146,6 +182,7 @@ struct BacktrackSearch::Impl
             return v; };
         for(auto i = 0; i < dims.nx; ++i) u.x[i] = snap(u.x[i], uo.x[i] + xstep[i], xlower[i], xupper[i]);
         for(auto i = 0; i < dims.np; ++i) u.p[i] = snap(u.p[i], uo.p[i] + pstep[i], plower[i], pupper[i]);
+        if(snapI >= 0) { u.x[snapI] = xlower[snapI]; lastSnap = snapI; }
 
         const long nclamp = trace::file() ? trace::countOutside(u.x.data(), xlower.data(), xupper.data(), (long)dims.nx) : 0;
 
@@ -181,6 +218,11 @@ auto BacktrackSearch::setOptions(const BacktrackSearchOptions& options) -> void
 auto BacktrackSearch::initialize(const MasterProblem& problem) -> void
 {
     pimpl->initialize(problem);
+}
+
+auto BacktrackSearch::snapIndex() const -> long
+{
+    return pimpl->lastSnap;
 }
 
 auto BacktrackSearch::execute(MasterVectorView uo, MasterVectorRef u, ResidualFunction& F, ResidualErrors& E) -> void

@@ -40,6 +40,7 @@ struct ErrorControl::Impl
     ErrorControlOptions options; ///< The options for the error control.
 
     std::size_t stallCount = 0;      ///< Consecutive line searches that did not change the error (linesearch.stall_escape_after).
+    Vector xlowerSnap;               ///< The lower bounds for x, for the variable the step put on its bound.
 
     auto setOptions(const ErrorControlOptions& opts) -> void
     {
@@ -52,6 +53,7 @@ struct ErrorControl::Impl
     auto initialize(const MasterProblem& problem) -> void
     {
         stallCount = 0;
+        xlowerSnap = problem.xlower;
         errorstatus.initialize();
         backtracksearch.initialize(problem);
         linesearch.initialize(problem);
@@ -65,6 +67,12 @@ struct ErrorControl::Impl
         const auto error_prev = use_raw ? E.errorRaw() : E.error();
 
         backtracksearch.execute(uo, u, F, E);
+
+        // A variable the step put on its lower bound (snap_leaving_after) stays there whatever the line search does below.
+        struct KeepSnap {
+            BacktrackSearch& b; MasterVectorRef u; ResidualFunction& F; ResidualErrors& E; const Vector& lo;
+            ~KeepSnap() { const long i = b.snapIndex(); if(i >= 0 && u.x[i] != lo[i]) { u.x[i] = lo[i]; F.update(u); E.update(u, F); } }
+        } keepSnap{backtracksearch, u, F, E, xlowerSnap};
 
         // With the line search enabled, evaluate the error at the new point; otherwise
         // error_new would still be the pre-step error.
