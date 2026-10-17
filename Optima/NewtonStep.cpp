@@ -65,20 +65,9 @@ struct NewtonStep::Impl
         linearsolver.decompose(Jc);
         linearsolver.solve(Jc, Fc, du);
 
-        if(auto* fp = trace::file())
-        {
-            // The Newton step: method and the largest change in x, p and w.
-            Index idu = 0;
-            double nx = 0.0;
-            for(Index i = 0; i < du.x.size(); ++i)
-                if(std::abs(du.x[i]) > nx) { nx = std::abs(du.x[i]); idu = i; }
-            const double np = du.p.size() ? du.p.cwiseAbs().maxCoeff() : 0.0;
-            const double nw = du.w.size() ? du.w.cwiseAbs().maxCoeff() : 0.0;
-            const char* m = method == LinearSolverMethod::Nullspace ? "nullspace" : method == LinearSolverMethod::Rangespace ? "rangespace" : "fullspace";
-            fprintf(fp, "NEWTON solve=%ld attempt=%d it=%ld method=%s ndu_x=%.6e ndu_p=%.6e ndu_w=%.6e idu=%ld\n",
-                trace::state().solve, trace::state().attempt, trace::state().iter, m, nx, np, nw, (long)idu);
-            fflush(fp);
-        }
+        // The Newton step: method and the largest change in x, p and w.
+        trace::writeNewton(method == LinearSolverMethod::Nullspace ? "nullspace" : method == LinearSolverMethod::Rangespace ? "rangespace" : "fullspace",
+            du.x.data(), (long)du.x.size(), du.p.data(), (long)du.p.size(), du.w.data(), (long)du.w.size());
         u.x.noalias() = uo.x + du.x;
         u.p.noalias() = uo.p + du.p;
         u.w.noalias() = uo.w + du.w;
