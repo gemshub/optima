@@ -26,7 +26,38 @@
 #include <Optima/Exception.hpp>
 #include <Optima/LU.hpp>
 
+// Probe includes
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
+#include <Eigen/LU>
+
 namespace Optima {
+
+namespace {
+
+/// The LU probe file, or null. When OPTIMA_LU_PROBE names a file, every solve writes one line there comparing
+/// today's full-pivot LU with a partial-pivot LU of the same matrix.
+FILE* luProbeFile()
+{
+    static FILE* f = [] {
+        const char* fn = std::getenv("OPTIMA_LU_PROBE");
+        return fn ? fopen(fn, "w") : nullptr;
+    }();
+    return f;
+}
+
+/// The smallest and largest absolute diagonal entries of an LU factor.
+template<typename M>
+auto pivotRange(const M& lu, double& dmin, double& dmax) -> void
+{
+    const auto D = lu.diagonal().cwiseAbs();
+    dmin = D.size() ? D.minCoeff() : 0.0;
+    dmax = D.size() ? D.maxCoeff() : 0.0;
+}
+
+} // namespace
 
 struct LinearSolverNullspace::Impl
 {
@@ -40,6 +71,9 @@ struct LinearSolverNullspace::Impl
     Matrix Mw;  ///< The workspace for the matrix M in the decompose and solve methods.
     Vector rw;  ///< The workspace for the vector r in the decompose and solve methods.
     LU lu;      ///< The LU decomposition solver.
+    Matrix Mprobe;           ///< The matrix last factorised, kept only while the LU probe is on.
+    double probeFullUs = 0;  ///< The time of that full-pivot factorisation, in microseconds.
+    Index probeDims[3] = {};  ///< nbe, nns and np of that matrix.
 
     Impl()
     {}
@@ -143,7 +177,15 @@ struct LinearSolverNullspace::Impl
         if( np) M3 << Vpbe, Vpns, Vpp, Opbe;
         if(nbe) M4 << Ibebe, Sbens, Sbep, Obebe;
 
-        if(t) lu.decompose(M);
+        if(t && luProbeFile())
+        {
+            Mprobe = M;
+            probeDims[0] = nbe; probeDims[1] = nns; probeDims[2] = np;
+            const auto t0 = std::chrono::steady_clock::now();
+            lu.decompose(M);
+            probeFullUs = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+        }
+        else if(t) lu.decompose(M);
     }
 
     auto solve(CanonicalMatrix J, CanonicalVectorView a, CanonicalVectorRef u) -> void
@@ -227,7 +269,38 @@ struct LinearSolverNullspace::Impl
 
         if(t) r << abe, ans, ap, awbe;
 
-        if(t) lu.solve(r);
+        if(t && luProbeFile() && Mprobe.rows() == t)
+        {
+            // Today's full-pivot solve, then a partial-pivot solve of the same system for comparison.
+            const Vector r0 = r;
+            lu.solve(r);
+            double fmin, fmax, pmin, pmax;
+            pivotRange(lu.matrixLU(), fmin, fmax);
+            const auto t0 = std::chrono::steady_clock::now();
+            Eigen::PartialPivLU<Matrix> pp(Mprobe);
+            const double ppUs = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+            pivotRange(pp.matrixLU(), pmin, pmax);
+            const Vector xp = pp.solve(r0);
+            // Rows the partial-pivot factors would drop under LU::assembleU's own test, |U_ii| <= eps |y_i| with L y = P r.
+            Vector yp = pp.permutationP() * r0;
+            pp.matrixLU().triangularView<Eigen::UnitLower>().solveInPlace(yp);
+            const double eps = std::numeric_limits<double>::epsilon();
+            long ppdrop = 0;
+            for(Index i = 0; i < t; ++i)
+                if(std::abs(pp.matrixLU()(i, i)) <= eps * std::abs(yp[i])) ++ppdrop;
+            const double xinf = r.cwiseAbs().maxCoeff();
+            const double dxrel = (xp - r).cwiseAbs().maxCoeff() / (xinf > 0 ? xinf : 1.0);
+            const double scale = Mprobe.cwiseAbs().maxCoeff();
+            const double rinf = r0.cwiseAbs().maxCoeff();
+            const double resF = (Mprobe*r - r0).cwiseAbs().maxCoeff() / (scale*xinf + rinf + 1e-300);
+            const double xpinf = xp.cwiseAbs().maxCoeff();
+            const double resP = (Mprobe*xp - r0).cwiseAbs().maxCoeff() / (scale*xpinf + rinf + 1e-300);
+            static long nprobe = 0;
+            fprintf(luProbeFile(), "LU n=%ld t=%ld nbe=%ld nns=%ld np=%ld rank=%ld ppdrop=%ld fpiv=%.3e ppiv=%.3e dx=%.3e resF=%.3e resP=%.3e "
+                    "fus=%.0f pus=%.0f\n", ++nprobe, (long)t, (long)probeDims[0], (long)probeDims[1], (long)probeDims[2],
+                    (long)lu.rank(), ppdrop, fmax > 0 ? fmin/fmax : 0.0, pmax > 0 ? pmin/pmax : 0.0, dxrel, resF, resP, probeFullUs, ppUs);
+        }
+        else if(t) lu.solve(r);
 
         auto dxbi = awbi;
         auto dwbi = abi;
