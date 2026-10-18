@@ -9,10 +9,23 @@ if(NOT TARGET Optima::Optima)
     include("@PACKAGE_OPTIMA_INSTALL_CONFIGDIR@/OptimaTargets.cmake")
 endif()
 
-# Find all dependencies below
-find_package(Eigen3 REQUIRED)
-if(Eigen3_VERSION VERSION_LESS 3.4)
-    message(FATAL_ERROR "Optima requires Eigen3 >= 3.4, found ${Eigen3_VERSION}")
+# Eigen: use the one Optima was built with.
+set(_optima_eigen_dir "@Eigen3_DIR@")
+set(_optima_eigen_version "@Eigen3_VERSION@")
+if(Eigen3_DIR AND NOT Eigen3_DIR STREQUAL _optima_eigen_dir AND EXISTS "${Eigen3_DIR}/Eigen3ConfigVersion.cmake")
+    # An Eigen was chosen by the caller: it must be the same version.
+    file(STRINGS "${Eigen3_DIR}/Eigen3ConfigVersion.cmake" _optima_user_ver REGEX "set\\(PACKAGE_VERSION \"[0-9.]+\"")
+    string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" _optima_user_eigen_version "${_optima_user_ver}")
+    if(NOT _optima_user_eigen_version VERSION_EQUAL _optima_eigen_version)
+        message(FATAL_ERROR "Optima was built with Eigen ${_optima_eigen_version} (${_optima_eigen_dir}), "
+                            "but Eigen3_DIR=${Eigen3_DIR} is Eigen ${_optima_user_eigen_version}. "
+                            "Remove Eigen3_DIR or point it to Eigen ${_optima_eigen_version}.")
+    endif()
+endif()
+find_package(Eigen3 ${_optima_eigen_version} EXACT QUIET CONFIG PATHS "${_optima_eigen_dir}" NO_DEFAULT_PATH)
+if(NOT Eigen3_FOUND)
+    message(FATAL_ERROR "Optima was built with Eigen ${_optima_eigen_version} (${_optima_eigen_dir}), "
+                        "which was not found. Install that Eigen or set Eigen3_DIR to an Eigen ${_optima_eigen_version}.")
 endif()
 
 # Recommended check at the end of a cmake config file.
