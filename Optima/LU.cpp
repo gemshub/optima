@@ -251,17 +251,19 @@ auto LU::rank() const -> Index
 
 auto LU::matrixLU() const -> MatrixView
 {
-    return pimpl->lu.matrixLU();
+    return pimpl->usePartial ? MatrixView(pimpl->pplu.matrixLU()) : MatrixView(pimpl->lu.matrixLU());
 }
 
 auto LU::P() const -> PermutationMatrix
 {
-    return pimpl->lu.permutationP();
+    return pimpl->usePartial ? PermutationMatrix(pimpl->pplu.permutationP()) : PermutationMatrix(pimpl->lu.permutationP());
 }
 
 auto LU::Q() const -> PermutationMatrix
 {
-    return pimpl->lu.permutationP();
+    // The partial-pivot factors permute rows only.
+    if(pimpl->usePartial) { PermutationMatrix q(pimpl->pplu.rows()); q.setIdentity(); return q; }
+    return pimpl->lu.permutationQ();
 }
 
 } // namespace Optima

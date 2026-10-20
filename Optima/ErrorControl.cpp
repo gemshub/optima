@@ -69,10 +69,11 @@ struct ErrorControl::Impl
         backtracksearch.execute(uo, u, F, E);
 
         // A variable the step put on its lower bound (snap_leaving_after) stays there whatever the line search does below.
+        // Only the value is reset here; the caller (MasterSolver::step) updates F and E right after this function.
         struct KeepSnap {
-            BacktrackSearch& b; MasterVectorRef u; ResidualFunction& F; ResidualErrors& E; const Vector& lo;
-            ~KeepSnap() { const long i = b.snapIndex(); if(i >= 0 && u.x[i] != lo[i]) { u.x[i] = lo[i]; F.update(u); E.update(u, F); } }
-        } keepSnap{backtracksearch, u, F, E, xlowerSnap};
+            BacktrackSearch& b; MasterVectorRef u; const Vector& lo;
+            ~KeepSnap() { const long i = b.snapIndex(); if(i >= 0 && u.x[i] != lo[i]) u.x[i] = lo[i]; }
+        } keepSnap{backtracksearch, u, xlowerSnap};
 
         // With the line search enabled, evaluate the error at the new point; otherwise
         // error_new would still be the pre-step error.

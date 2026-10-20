@@ -271,11 +271,12 @@ struct LinearSolverNullspace::Impl
 
         if(t && luProbeFile() && Mprobe.rows() == t)
         {
-            // Today's full-pivot solve, then a partial-pivot solve of the same system for comparison.
+            // The production solve, a full-pivot factorisation for the pivot range, and a partial-pivot solve for comparison.
             const Vector r0 = r;
             lu.solve(r);
             double fmin, fmax, pmin, pmax;
-            pivotRange(lu.matrixLU(), fmin, fmax);
+            const Eigen::FullPivLU<Matrix> fp(Mprobe);
+            pivotRange(fp.matrixLU(), fmin, fmax);
             const auto t0 = std::chrono::steady_clock::now();
             Eigen::PartialPivLU<Matrix> pp(Mprobe);
             const double ppUs = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();

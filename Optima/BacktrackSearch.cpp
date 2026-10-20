@@ -52,7 +52,7 @@ struct BacktrackSearch::Impl
     auto initialize(const MasterProblem& problem) -> void
     {
         dims   = problem.dims;
-        leaveArg = -1; leaveStreak = 0;
+        leaveArg = -1; leaveStreak = 0; lastSnap = -1;
         xlower = problem.xlower;
         xupper = problem.xupper;
         plower = problem.plower;
@@ -73,6 +73,7 @@ struct BacktrackSearch::Impl
 
         if(options.apply_min_max_fix_and_accept)
         {
+            lastSnap = -1;
             const long nclamp = trace::file() ? trace::countOutside(u.x.data(), xlower.data(), xupper.data(), (long)dims.nx) : 0;
             u.x.noalias() = min(max(u.x, xlower), xupper);
             u.p.noalias() = min(max(u.p, plower), pupper);
