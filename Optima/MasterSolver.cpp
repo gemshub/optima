@@ -55,10 +55,7 @@ struct MasterSolver::Impl
     Outputter outputter; ///< The object used to output the current state of the computation.
     Result result;
     Options options;
-    Vector tracexlower;                 ///< The lower bounds of x, kept only while tracing.
-    Vector tracexupper;                 ///< The upper bounds of x, kept only while tracing.
-    std::vector<long> traceprevjb;      ///< The basic variables at the previous traced iteration.
-    std::vector<double> traceerrors;    ///< The error at each traced iteration.
+    trace::Recorder tracer;             ///< The ITER and STOP records, written only while tracing.
 
     Impl()
     {}
@@ -66,45 +63,24 @@ struct MasterSolver::Impl
     /// Write one ITER record for the current state.
     auto traceIter() -> void
     {
-        auto* fp = trace::file();
-        if(!fp) return;
+        if(!trace::file()) return;
         const auto& r = F.result();
         const auto& jb = r.Jm.RWQ.jb;
         const auto& jn = r.Jm.RWQ.jn;
         const auto& ss = r.stabilitystatus;
-        long nbbound = 0, nnlow = 0, nnup = 0, jbchg = 0;
-        for(auto i : jb) if(uo.x[i] == tracexlower[i] || uo.x[i] == tracexupper[i]) nbbound++;
-        for(auto i : jn) { if(uo.x[i] == tracexlower[i]) nnlow++; else if(uo.x[i] == tracexupper[i]) nnup++; }
-        std::vector<long> cur(jb.begin(), jb.end());
-        for(auto i : cur) if(std::find(traceprevjb.begin(), traceprevjb.end(), i) == traceprevjb.end()) jbchg++;
-        if(traceprevjb.empty()) jbchg = 0;
-        traceprevjb = cur;
-        traceerrors.push_back(E.error());
-        const auto& ts = trace::state();
-        fprintf(fp, "ITER solve=%ld attempt=%d it=%ld f=%.12e err=%.6e errx=%.6e errp=%.6e errw=%.6e nb=%ld nbs=%ld nl=%ld ns=%ld nlu=%ld nuu=%ld nn_lower=%ld nn_upper=%ld nb_bound=%ld jb_changed=%ld F_updates=%ld fx_evals=%ld\n",
-            ts.solve, ts.attempt, (long)result.iterations, (double)r.f.f, E.error(), E.errorx(), E.errorp(), E.errorw(),
-            (long)jb.size(), (long)r.Jc.dims.nbs, (long)r.Jc.dims.nl, (long)ss.js.size(), (long)ss.jlu.size(), (long)ss.juu.size(),
-            nnlow, nnup, nbbound, jbchg, ts.fupdates, ts.fxevals);
-        fflush(fp);
+        tracer.iter((long)result.iterations, (double)r.f.f, E.error(), E.errorx(), E.errorp(), E.errorw(),
+            jb.data(), (long)jb.size(), jn.data(), (long)jn.size(), uo.x.data(),
+            (long)r.Jc.dims.nbs, (long)r.Jc.dims.nl, (long)ss.js.size(), (long)ss.jlu.size(), (long)ss.juu.size());
     }
 
-    /// Write the STOP record: why the loop ended and when the error first passed some levels.
+    /// Write the STOP record: why the loop ended.
     auto traceStop() -> void
     {
-        auto* fp = trace::file();
-        if(!fp) return;
+        if(!trace::file()) return;
         const char* reason = converged ? (E.error() < options.convergence.tolerance ? "tol" : "check")
                                        : (result.iterations > options.maxiters ? "maxiters" : "fatal");
-        long i6 = -1, i8 = -1;
-        for(size_t i = 0; i < traceerrors.size(); ++i)
-        {
-            if(i6 < 0 && traceerrors[i] < 1e-6) i6 = (long)i;
-            if(i8 < 0 && traceerrors[i] < 1e-8) i8 = (long)i;
-        }
-        fprintf(fp, "STOP solve=%ld attempt=%d it=%ld reason=%s err=%.6e tol_used=%.3e maxiters_used=%u check_used=%d first_it_below_1e-6=%ld first_it_below_1e-8=%ld\n",
-            trace::state().solve, trace::state().attempt, (long)result.iterations, reason, E.error(),
-            options.convergence.tolerance, options.maxiters, options.convergence.check ? 1 : 0, i6, i8);
-        fflush(fp);
+        tracer.stop((long)result.iterations, reason, E.error(), options.convergence.tolerance, options.maxiters,
+            static_cast<bool>(options.convergence.check));
     }
 
     auto outputHeaderTop() -> void
@@ -199,10 +175,7 @@ struct MasterSolver::Impl
         {
             trace::state().iter = 0;
             if(trace::state().auto_attempt) trace::state().attempt = ++trace::state().solves_in_call;
-            tracexlower = problem.xlower;
-            tracexupper = problem.xupper;
-            traceprevjb.clear();
-            traceerrors.clear();
+            tracer.begin(problem.xlower.data(), problem.xupper.data(), (long)problem.xlower.size());
         }
         u.x.noalias() = min(max(u.x, problem.xlower), problem.xupper);
         u.p.noalias() = min(max(u.p, problem.plower), problem.pupper);

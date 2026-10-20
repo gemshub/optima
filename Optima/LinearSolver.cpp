@@ -149,6 +149,7 @@ auto LinearSolver::operator=(LinearSolver other) -> LinearSolver&
 auto LinearSolver::setOptions(const LinearSolverOptions& options) -> void
 {
     pimpl->options = options;
+    pimpl->nullspace.setOptions(options);
 }
 
 auto LinearSolver::options() const -> const LinearSolverOptions&

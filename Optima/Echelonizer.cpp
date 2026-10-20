@@ -17,6 +17,9 @@
 
 #include "Echelonizer.hpp"
 
+// C++ includes
+#include <cstdlib>
+
 // Eigen includes
 #include <Eigen/Dense>
 
@@ -236,13 +239,20 @@ struct Echelonizer::Impl
         auto ibasic = Q.head(nb);
         auto inonbasic = Q.tail(nn);
 
+        // A swap entry must also be large against the largest entry of its row, so the basic set stays independent.
+        // OPTIMA_ECH_RELPIVOT sets this ratio for tests (0 turns the check off).
+        static const double relTol = std::getenv("OPTIMA_ECH_RELPIVOT") ? std::atof(std::getenv("OPTIMA_ECH_RELPIVOT")) : 1e-8;
+
         // Find the non-basic variable with maximum proportional weight with respect to a basic variable
         auto find_nonbasic_candidate = [&](Index i, Index& j)
         {
             j = 0; double max = -infinity();
             double tmp = 0.0;
+            double rowmax = 0.0;
+            if(relTol > 0.0) for(Index k = 0; k < nn; ++k) rowmax = std::max(rowmax, std::abs(S(i, k)));
             for(Index k = 0; k < nn; ++k) {
                 if(std::abs(S(i, k)) <= threshold) continue;
+                if(relTol > 0.0 && std::abs(S(i, k)) <= relTol * rowmax) continue;
                 tmp = w[inonbasic[k]];
                 if(tmp > max) {
                     max = tmp;
@@ -252,14 +262,37 @@ struct Echelonizer::Impl
             return max;
         };
 
+        // A swap is made only if the new basic columns of A are still clearly independent: a pivot below 1e-8 of the
+        // largest counts as zero, so nearly singular sets are refused too. Otherwise the next candidate by weight is tried.
+        // OPTIMA_ECH_RANKCHECK=0 turns this check off for tests; OPTIMA_ECH_RANKTOL sets the pivot ratio.
+        static const bool rankCheck = !(std::getenv("OPTIMA_ECH_RANKCHECK") && std::atoi(std::getenv("OPTIMA_ECH_RANKCHECK")) == 0);
+        static const double rankTol = std::getenv("OPTIMA_ECH_RANKTOL") ? std::atof(std::getenv("OPTIMA_ECH_RANKTOL")) : 1e-8;
+        auto keeps_rank = [&](Index i, Index k) -> bool
+        {
+            Matrix B(A.rows(), nb);
+            for(Index c = 0; c < nb; ++c) B.col(c) = A.col(c == i ? inonbasic[k] : ibasic[c]);
+            Eigen::FullPivLU<Matrix> blu(B);
+            if(rankTol > 0.0) blu.setThreshold(rankTol);
+            return blu.rank() == nb;
+        };
+
         // Check if there are basic variables to be swapped with non-basic variables with higher priority
         if(nn > 0) for(Index i = 0; i < nb; ++i)
         {
             Index j;
             const double wi = w[ibasic[i]];
             const double wj = find_nonbasic_candidate(i, j);
-            if(wi < wj)
-                updateWithSwapBasicVariable(i, j);
+            if(!(wi < wj)) continue;
+            if(!rankCheck) { updateWithSwapBasicVariable(i, j); continue; }
+            double rowmax = 0.0;
+            for(Index k = 0; k < nn; ++k) rowmax = std::max(rowmax, std::abs(S(i, k)));
+            std::vector<Index> cand;
+            for(Index k = 0; k < nn; ++k)
+                if(std::abs(S(i, k)) > threshold && !(relTol > 0.0 && std::abs(S(i, k)) <= relTol * rowmax) && w[inonbasic[k]] > wi)
+                    cand.push_back(k);
+            std::sort(cand.begin(), cand.end(), [&](Index l, Index r) { return w[inonbasic[l]] > w[inonbasic[r]]; });
+            for(Index k : cand)
+                if(keeps_rank(i, k)) { updateWithSwapBasicVariable(i, k); break; }
         }
 
         // Sort the basic variables in descend order of weights
