@@ -122,3 +122,16 @@ that your program uses this build and not a standard Optima.
 | Each step makes almost no progress and many variables are on bounds. | Look at `OPTIMA_BETA_PROBE`. Try `apply_min_max_fix_and_accept`. |
 | A warm start is slow because a species goes down to its bound a little at each step. | Set `snap_leaving_after = 2`. |
 | Large problems are slow in the linear solve. | Set `lu_partial_min_size = 100`. |
+
+## Terms
+
+| Word | Meaning |
+|---|---|
+| Basic variable | A variable that the solver selects for one independent constraint. The other variables are non-basic. |
+| Bound | A lower or upper limit of a variable. |
+| Error | The measure of how far the current point is from a solution. The solve stops when it is less than `convergence.tolerance`. |
+| Iteration | One step of the solver. |
+| Line search | A method that tries shorter steps when a full step makes the error larger. |
+| Pivot | The entry that a factorization uses to remove a variable from the other equations. |
+| Step factor | The fraction of the full step that the solver takes. All variables use the same factor. |
+| Warm start | A start from the solution of a previous, similar problem. |
