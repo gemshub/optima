@@ -4,6 +4,11 @@
 # Ensure dependencies from the conda environment are used (e.g., Boost).
 list(APPEND CMAKE_PREFIX_PATH $ENV{CONDA_PREFIX})
 
+# Include the cmake targets of the project if they have not been yet.
+if(NOT TARGET Optima::Optima)
+    include("@PACKAGE_OPTIMA_INSTALL_CONFIGDIR@/OptimaTargets.cmake")
+endif()
+
 # Eigen: use the one Optima was built with. A different or missing Eigen reports Optima as not found,
 # so find_package(Optima QUIET) can go on and find_package(Optima REQUIRED) stops with the message.
 set(_optima_eigen_dir "@Eigen3_DIR@")
@@ -26,11 +31,6 @@ if(NOT Eigen3_FOUND)
                                            "which was not found. Install that Eigen or set Eigen3_DIR to an Eigen ${_optima_eigen_version}.")
     set(Optima_FOUND FALSE)
     return()
-endif()
-
-# Include the cmake targets of the project if they have not been yet.
-if(NOT TARGET Optima::Optima)
-    include("@PACKAGE_OPTIMA_INSTALL_CONFIGDIR@/OptimaTargets.cmake")
 endif()
 
 # Recommended check at the end of a cmake config file.
