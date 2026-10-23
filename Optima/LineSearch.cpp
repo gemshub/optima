@@ -77,7 +77,8 @@ struct LineSearch::Impl
             utrial = uo*(1 - alpha) + alpha*u;
             F.update(utrial);
             E.update(utrial, F);
-            return E.error();
+            // With use_unmasked_error, minimize the error before masking (see ResidualErrors::errorRaw()).
+            return options.use_unmasked_error ? E.errorRaw() : E.error();
         };
 
         const auto tol = options.tolerance;

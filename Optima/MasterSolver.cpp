@@ -31,6 +31,9 @@
 #include <Optima/Result.hpp>
 #include <Optima/SensitivitySolver.hpp>
 #include <Optima/TransformStep.hpp>
+#include <Optima/Trace.hpp>
+
+#include <algorithm>
 
 namespace Optima {
 
@@ -52,9 +55,33 @@ struct MasterSolver::Impl
     Outputter outputter; ///< The object used to output the current state of the computation.
     Result result;
     Options options;
+    trace::Recorder tracer;             ///< The ITER and STOP records, written only while tracing.
 
     Impl()
     {}
+
+    /// Write one ITER record for the current state.
+    auto traceIter() -> void
+    {
+        if(!trace::file()) return;
+        const auto& r = F.result();
+        const auto& jb = r.Jm.RWQ.jb;
+        const auto& jn = r.Jm.RWQ.jn;
+        const auto& ss = r.stabilitystatus;
+        tracer.iter((long)result.iterations, (double)r.f.f, E.error(), E.errorx(), E.errorp(), E.errorw(),
+            jb.data(), (long)jb.size(), jn.data(), (long)jn.size(), uo.x.data(),
+            (long)r.Jc.dims.nbs, (long)r.Jc.dims.nl, (long)ss.js.size(), (long)ss.jlu.size(), (long)ss.juu.size());
+    }
+
+    /// Write the STOP record: why the loop ended.
+    auto traceStop() -> void
+    {
+        if(!trace::file()) return;
+        const char* reason = converged ? (E.error() < options.convergence.tolerance ? "tol" : "check")
+                                       : (result.iterations > options.maxiters ? "maxiters" : "fatal");
+        tracer.stop((long)result.iterations, reason, E.error(), options.convergence.tolerance, options.maxiters,
+            static_cast<bool>(options.convergence.check));
+    }
 
     auto outputHeaderTop() -> void
     {
@@ -144,6 +171,12 @@ struct MasterSolver::Impl
         sanitycheck(problem, u);
         dims = problem.dims;
         result = {};
+        if(trace::file())
+        {
+            trace::state().iter = 0;
+            if(trace::state().auto_attempt) trace::state().attempt = ++trace::state().solves_in_call;
+            tracer.begin(problem.xlower.data(), problem.xupper.data(), (long)problem.xlower.size());
+        }
         u.x.noalias() = min(max(u.x, problem.xlower), problem.xupper);
         u.p.noalias() = min(max(u.p, problem.plower), problem.pupper);
         uo = u;
@@ -163,18 +196,24 @@ struct MasterSolver::Impl
     auto stepping(MasterVectorRef u) -> bool
     {
         convergence.update(E);
-        if(result.iterations > options.maxiters)
-            return STOP;
+        // Convergence is checked before the iteration limit, so the final step that
+        // the limit allows (iterations == maxiters + 1) is reported as converged if it is.
         ConvergenceCheckArgs args{dims, F, E, uo, u, result};
         converged = convergence.converged(args);
         uo = u;
-        return converged ? STOP : CONTINUE;
+        if(converged)
+            return STOP;
+        if(result.iterations > options.maxiters)
+            return STOP;
+        return CONTINUE;
     }
 
     auto step(MasterVectorRef u) -> void
     {
         outputCurrentState();
+        traceIter();
         result.iterations += 1;
+        trace::state().iter = result.iterations;
         newtonstep.apply(F, uo, u);
         transformstep.execute(uo, u, F, E);
         errorcontrol.execute(uo, u, F, E);
@@ -203,6 +242,8 @@ struct MasterSolver::Impl
         }
 
         outputCurrentState();
+        traceIter();
+        traceStop();
         outputHeaderBottom();
         auto const& Fresult = F.result();
         auto const& ss = Fresult.stabilitystatus;

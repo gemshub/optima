@@ -17,6 +17,9 @@
 
 #pragma once
 
+// Marks an Optima build that has BacktrackSearchOptions::snap_leaving_after.
+#define OPTIMA_BACKTRACK_SNAP_LEAVING 1
+
 namespace Optima {
 
 /// The options for the backtrack search operations.
@@ -31,6 +34,11 @@ struct BacktrackSearchOptions
     /// vector is not a descent direction, since the min-max fix alters its
     /// orientation.
     bool apply_min_max_fix_and_accept = false;
+
+    /// After this many steps in a row limited by the same variable on its way to its lower bound
+    /// (with a target more than twice as far below as it is above the bound), that variable is put
+    /// on the bound and the step is limited by the others. 0 = off.
+    long snap_leaving_after = 0;
 };
 
 } // namespace Optima

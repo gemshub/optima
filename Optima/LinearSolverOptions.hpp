@@ -18,6 +18,10 @@
 #pragma once
 
 // Optima includes
+#include <Optima/Index.hpp>
+
+// Marks an Optima build that has LinearSolverOptions::lu_partial_min_size.
+#define OPTIMA_LU_PARTIAL_PIVOT 1
 
 namespace Optima {
 
@@ -58,6 +62,10 @@ struct LinearSolverOptions
 {
     /// The method for solving the linear problems.
     LinearSolverMethod method = LinearSolverMethod::Nullspace;
+
+    /// Nullspace method: a matrix of at least this size is factorised with partial pivoting, and only a step
+    /// that would drop an equation is redone with full pivoting. 0 = always full pivoting.
+    Index lu_partial_min_size = 0;
 };
 
 } // namespace Optima

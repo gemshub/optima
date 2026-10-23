@@ -19,12 +19,16 @@
 
 // C++ includes
 #include <cassert>
+#include <cmath>
+#include <limits>
 
 // Eigen includes
 #include <Eigen/src/LU/FullPivLU.h>
+#include <Eigen/src/LU/PartialPivLU.h>
 
 // Optima includes
 #include <Optima/Macros.hpp>
+#include <Optima/Trace.hpp>
 
 namespace Optima {
 
@@ -39,6 +43,21 @@ struct LU::Impl
 
     /// The base LU solver from Eigen library.
     Eigen::FullPivLU<Matrix> lu;
+
+    /// The partial-pivot LU, used for a matrix of at least partialMinSize rows.
+    Eigen::PartialPivLU<Matrix> pplu;
+
+    /// The matrix last given to decompose, kept while the partial-pivot LU is in use (for the fallback).
+    Matrix Acopy;
+
+    /// The smallest matrix factorised with partial pivoting (0 = never).
+    Index partialMinSize = 0;
+
+    /// True while the current factorisation is the partial-pivot one.
+    bool usePartial = false;
+
+    /// The workspace for y in the partial-pivot solve.
+    Vector yp;
 
     /// The workspace for modified matrix U.
     Matrix U;
@@ -62,7 +81,7 @@ struct LU::Impl
     /// Return true if empty.
     auto empty() const -> bool
     {
-        return lu.matrixLU().size() == 0;
+        return usePartial ? pplu.matrixLU().size() == 0 : lu.matrixLU().size() == 0;
     }
 
     /// Compute the LU decomposition of the given matrix.
@@ -71,7 +90,13 @@ struct LU::Impl
         const auto m = A.rows();
         const auto n = A.cols();
         assert(n == m);
-        lu.compute(A);
+        usePartial = partialMinSize > 0 && n >= partialMinSize;
+        if(usePartial)
+        {
+            Acopy = A;
+            pplu.compute(Acopy);
+        }
+        else lu.compute(A);
     }
 
     /// Solve the linear system `Ax = b` using the LU decomposition obtained with @ref decompose.
@@ -84,6 +109,8 @@ struct LU::Impl
     /// Solve the linear system `Ax = b` using the LU decomposition obtained with @ref decompose.
     auto solve(VectorRef x) -> void
     {
+        if(usePartial && solvePartial(x))
+            return;
         const auto& n  = lu.rows();
         const auto& P  = lu.permutationP();
         const auto& Q  = lu.permutationQ();
@@ -101,6 +128,33 @@ struct LU::Impl
         Q.applyThisOnTheLeft(is_li);
 
         // TODO; In LU, x should have +inf or -inf to indicate extremely large steps and their directions. Then a line search would be used to find a reasonable step length/
+    }
+
+    /// Solve with the partial-pivot factors. Returns false, with x unchanged and the full-pivot factors computed,
+    /// when assembleU's test would drop an equation (|U_ii| <= eps |y_i|): that step goes the full-pivot way.
+    auto solvePartial(VectorRef x) -> bool
+    {
+        const auto n = pplu.rows();
+        const auto& M = pplu.matrixLU();
+        const auto eps = std::numeric_limits<double>::epsilon();
+        yp.noalias() = pplu.permutationP() * x;
+        M.triangularView<Eigen::UnitLower>().solveInPlace(yp);
+        trace::state().lupartial++;
+        for(Index i = 0; i < n; ++i)
+        {
+            if(std::abs(M(i, i)) <= eps * std::abs(yp[i]))
+            {
+                trace::state().lufallbacks++;
+                lu.compute(Acopy);
+                usePartial = false; // later solves with this matrix use the full-pivot factors too
+                return false;
+            }
+        }
+        M.triangularView<Eigen::Upper>().solveInPlace(yp);
+        x = yp;
+        is_li.setOnes(n);
+        rank = n;
+        return true;
     }
 
     /// Assemble the U matrix with given y, where y is the solution of L*y = P*b.
@@ -169,6 +223,11 @@ auto LU::empty() const -> bool
     return pimpl->empty();
 }
 
+auto LU::setPartialMinSize(Index n) -> void
+{
+    pimpl->partialMinSize = n;
+}
+
 auto LU::decompose(MatrixView A) -> void
 {
     pimpl->decompose(A);
@@ -192,17 +251,19 @@ auto LU::rank() const -> Index
 
 auto LU::matrixLU() const -> MatrixView
 {
-    return pimpl->lu.matrixLU();
+    return pimpl->usePartial ? MatrixView(pimpl->pplu.matrixLU()) : MatrixView(pimpl->lu.matrixLU());
 }
 
 auto LU::P() const -> PermutationMatrix
 {
-    return pimpl->lu.permutationP();
+    return pimpl->usePartial ? PermutationMatrix(pimpl->pplu.permutationP()) : PermutationMatrix(pimpl->lu.permutationP());
 }
 
 auto LU::Q() const -> PermutationMatrix
 {
-    return pimpl->lu.permutationP();
+    // The partial-pivot factors permute rows only.
+    if(pimpl->usePartial) { PermutationMatrix q(pimpl->pplu.rows()); q.setIdentity(); return q; }
+    return pimpl->lu.permutationQ();
 }
 
 } // namespace Optima

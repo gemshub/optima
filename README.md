@@ -6,6 +6,8 @@ Optima is a general-purpose C++/Python library for solving linear and non-linear
 
 > Optima is still under development and its API can change at any time. At the moment, Optima is mainly used in [Reaktoro](https://reaktoro.org) for minimization computations related to chemical equilibrium calculations. A documentation webpage for Optima is still missing to demonstrate all its use cases, which shall be implemented in the coming months.
 
+**Options and methods:** see [docs/OPTIONS-GUIDE.md](docs/OPTIONS-GUIDE.md) — what each solver option does and when it matters.
+
 # Installing
 
 Installing Optima is relatively easy as shown below.
