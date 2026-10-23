@@ -2,6 +2,7 @@
 // name REAKTORO_TRACE_FILE) names a file.
 #pragma once
 
+#include <cstddef>
 #include <cstdio>
 #include <vector>
 
@@ -60,7 +61,7 @@ public:
 
     /// Write one ITER record.
     void iter(long it, double f, double err, double errx, double errp, double errw,
-              const long* jb, long njb, const long* jn, long njn, const double* x,
+              const std::ptrdiff_t* jb, long njb, const std::ptrdiff_t* jn, long njn, const double* x,
               long nbs, long nl, long ns, long nlu, long nuu);
 
     /// Write the STOP record: why the loop ended and when the error first passed 1e-6 and 1e-8.
@@ -68,7 +69,7 @@ public:
 
 private:
     std::vector<double> lo, hi;     ///< The bounds of x.
-    std::vector<long> prevjb;       ///< The basic variables at the previous iteration.
+    std::vector<std::ptrdiff_t> prevjb;       ///< The basic variables at the previous iteration.
     std::vector<double> errors;     ///< The error at each iteration.
 };
 

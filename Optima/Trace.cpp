@@ -97,15 +97,15 @@ void Recorder::begin(const double* xlower, const double* xupper, long n)
 }
 
 void Recorder::iter(long it, double f, double err, double errx, double errp, double errw,
-                    const long* jb, long njb, const long* jn, long njn, const double* x,
+                    const std::ptrdiff_t* jb, long njb, const std::ptrdiff_t* jn, long njn, const double* x,
                     long nbs, long nl, long ns, long nlu, long nuu)
 {
     auto* fp = file();
     if(!fp) return;
     long nbbound = 0, nnlow = 0, nnup = 0, jbchg = 0;
-    for(long k = 0; k < njb; ++k) { const long i = jb[k]; if(x[i] == lo[i] || x[i] == hi[i]) nbbound++; }
-    for(long k = 0; k < njn; ++k) { const long i = jn[k]; if(x[i] == lo[i]) nnlow++; else if(x[i] == hi[i]) nnup++; }
-    std::vector<long> cur(jb, jb + njb);
+    for(long k = 0; k < njb; ++k) { const std::ptrdiff_t i = jb[k]; if(x[i] == lo[i] || x[i] == hi[i]) nbbound++; }
+    for(long k = 0; k < njn; ++k) { const std::ptrdiff_t i = jn[k]; if(x[i] == lo[i]) nnlow++; else if(x[i] == hi[i]) nnup++; }
+    std::vector<std::ptrdiff_t> cur(jb, jb + njb);
     for(auto i : cur) if(std::find(prevjb.begin(), prevjb.end(), i) == prevjb.end()) jbchg++;
     if(prevjb.empty()) jbchg = 0;
     prevjb = cur;
