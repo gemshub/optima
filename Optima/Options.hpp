@@ -98,6 +98,10 @@ public:
 
     /// The options used for convergence analysis.
     ConvergenceOptions convergence;
+
+    /// Jump ahead when two steps point the same way and get shorter at a steady ratio.
+    /// The jump is kept only if the error falls, and it is not tried if it would cross a bound.
+    bool jumpahead = false;
 };
 
 } // namespace Optima

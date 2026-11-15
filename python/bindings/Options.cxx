@@ -49,5 +49,6 @@ void exportOptions(py::module& m)
         .def_readwrite("steepestdescent", &Options::steepestdescent, "The options for the steepest descent step operation when needed.")
         .def_readwrite("newtonstep"     , &Options::newtonstep     , "The options used for Newton step calculations.")
         .def_readwrite("convergence"    , &Options::convergence    , "The options used for convergence analysis.")
+        .def_readwrite("jumpahead"      , &Options::jumpahead      , "Jump ahead when steps shrink at a steady ratio; kept only if the error falls.")
         ;
 }
