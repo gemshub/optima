@@ -256,7 +256,7 @@ struct MasterSolver::Impl
                 u.x.noalias() = u.x + (g - 1.) * d;
                 F.update(u);
                 E.update(u, F);
-                if(E.error() < e0) fired = true;
+                if(F.result().succeeded && E.error() < e0) fired = true;
                 else { u.x = xkeep; F.update(u); E.update(u, F); }
             }
         }
