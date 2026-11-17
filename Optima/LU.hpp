@@ -44,6 +44,9 @@ struct LU
     /// Return true if empty.
     auto empty() const -> bool;
 
+    /// Use partial pivoting for a matrix of at least this size, full pivoting below it (0 = always full).
+    auto setPartialMinSize(Index n) -> void;
+
     /// Compute the LU decomposition of the given matrix.
     auto decompose(MatrixView A) -> void;
 

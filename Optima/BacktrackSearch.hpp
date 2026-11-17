@@ -57,6 +57,9 @@ public:
 
     /// Execute the backtrack search until `u` has no out-of-bounds and the new error has decreased.
     auto execute(MasterVectorView uo, MasterVectorRef u, ResidualFunction& F, ResidualErrors& E) -> void;
+
+    /// The x variable put on its lower bound by the last step, or -1.
+    auto snapIndex() const -> long;
 };
 
 } // namespace Optima

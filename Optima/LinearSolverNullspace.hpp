@@ -24,6 +24,7 @@
 #include <Optima/MasterDims.hpp>
 #include <Optima/CanonicalMatrix.hpp>
 #include <Optima/CanonicalVector.hpp>
+#include <Optima/LinearSolverOptions.hpp>
 
 namespace Optima {
 
@@ -42,6 +43,9 @@ public:
 
     /// Assign a LinearSolverNullspace instance to this.
     auto operator=(LinearSolverNullspace other) -> LinearSolverNullspace&;
+
+    /// Set the options of the linear solver (only lu_partial_min_size is used here).
+    auto setOptions(const LinearSolverOptions& options) -> void;
 
     /// Decompose the canonical matrix.
     auto decompose(CanonicalMatrix M) -> void;

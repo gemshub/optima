@@ -40,6 +40,7 @@ struct ResidualErrors::Impl
     double errorp = 0.0; ///< The maximum residual error associated with the external constraint equations.
     double errorw = 0.0; ///< The maximum residual error associated with the linear and non-linear constraint equations in canonical form.
     double error  = 0.0; ///< The error norm sqrt(||ex||^2 + ||ep||^2 + ||ew||^2).
+    double errorRaw = 0.0; ///< The error norm max(|ex|, |ep|, |ewbar|) before masking.
 
     Impl()
     {}
@@ -90,6 +91,9 @@ struct ResidualErrors::Impl
         ewbs = abs(Fc.wbs);
         ewbl.fill(0.0);
 
+        // Error norm before unstable and at-bound variables are masked below.
+        errorRaw = std::max({norminf(ex), norminf(ep), norminf(ewbar)});
+
         // Ensure currently unstable x variables have zero optimality errors.
         ex(ju).fill(0.0);
 
@@ -99,8 +103,10 @@ struct ResidualErrors::Impl
         // variables attached to their bounds are zeroed out below.
 
         // Ensure basic variables on the bounds have zero optimality error
-        ex(jbs) = (xbs.array() == xbslower.array()).select(0.0, ex(jbs));
-        ex(jbs) = (xbs.array() == xbsupper.array()).select(0.0, ex(jbs));
+        // (A plain loop: `select` over index views reads freed memory in Eigen 5.)
+        for(Index i = 0; i < nbs; ++i)
+            if(xbs[i] == xbslower[i] || xbs[i] == xbsupper[i])
+                ex[jbs[i]] = 0.0;
 
         errorx = norminf(ex);
         errorp = norminf(ep);
@@ -157,5 +163,7 @@ auto ResidualErrors::errorx() const -> double { return pimpl->errorx; }
 auto ResidualErrors::errorp() const -> double { return pimpl->errorp; }
 auto ResidualErrors::errorw() const -> double { return pimpl->errorw; }
 auto ResidualErrors::error() const -> double { return pimpl->error; }
+
+auto ResidualErrors::errorRaw() const -> double { return pimpl->errorRaw; }
 
 } // namespace Optima

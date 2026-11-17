@@ -1,6 +1,7 @@
 # Build directories
 *build*
 *external*
+install*
 
 # Conda files
 environment.yml
@@ -14,6 +15,7 @@ environment.yml
 .project
 .pydevproject
 .settings/
+docs/patches
 
 # SublimeText editor related files
 *.sublime-project
@@ -31,3 +33,6 @@ __pycache__/
 .history
 .cache
 compile_commands.json
+
+# AI 
+.claude/

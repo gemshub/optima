@@ -20,6 +20,9 @@
 // Optima includes
 #include <Optima/Exception.hpp>
 #include <Optima/LinearSolver.hpp>
+#include <Optima/Trace.hpp>
+
+#include <cmath>
 
 namespace Optima {
 
@@ -28,6 +31,7 @@ struct NewtonStep::Impl
     MasterDims dims;           ///< The dimensions of the master variables.
     LinearSolver linearsolver; ///< The linear solver for the master matrix equations.
     MasterVector du;           ///< The Newton step for master variables u = (x, p, w).
+    LinearSolverMethod method = LinearSolverMethod::Nullspace; ///< The linear solver method in use.
     Vector xlower;             ///< The lower bounds for variables *x*.
     Vector xupper;             ///< The upper bounds for variables *x*.
     Vector plower;             ///< The lower bounds for variables *p*.
@@ -39,6 +43,7 @@ struct NewtonStep::Impl
     auto setOptions(const NewtonStepOptions options) -> void
     {
         linearsolver.setOptions(options.linearsolver);
+        method = options.linearsolver.method;
     }
 
     auto initialize(const MasterProblem& problem) -> void
@@ -59,6 +64,10 @@ struct NewtonStep::Impl
         const auto Fc = res.Fc;
         linearsolver.decompose(Jc);
         linearsolver.solve(Jc, Fc, du);
+
+        // The Newton step: method and the largest change in x, p and w.
+        trace::writeNewton(method == LinearSolverMethod::Nullspace ? "nullspace" : method == LinearSolverMethod::Rangespace ? "rangespace" : "fullspace",
+            du.x.data(), (long)du.x.size(), du.p.data(), (long)du.p.size(), du.w.data(), (long)du.w.size());
         u.x.noalias() = uo.x + du.x;
         u.p.noalias() = uo.p + du.p;
         u.w.noalias() = uo.w + du.w;

@@ -17,6 +17,12 @@
 
 #pragma once
 
+#include <cstddef>
+
+/// Defined when LineSearchOptions has stall_escape_after and reject_if_worse, so client code can test for them.
+#define OPTIMA_LINESEARCH_STALL_ESCAPE 1
+#define OPTIMA_LINESEARCH_REJECT_WORSE 1
+
 namespace Optima {
 
 /// The options for the line search minimization operation.
@@ -33,6 +39,29 @@ struct LineSearchOptions
 
     /// The parameter that triggers line-search when current error is greater than previous error by a given factor (`Enew > factor*Eold`).
     double trigger_when_current_error_is_greater_than_previous_error_by_factor = 2.0;
+
+    /// Whether ErrorControl runs the line search (default false = never).
+    /// In plain words: allow the solver to try a shorter step when a full step makes things worse.
+    bool enabled = false;
+
+    /// Whether the line search minimizes ResidualErrors::errorRaw() instead of error() (default false).
+    /// In plain words: judge progress by the full error, including the parts error() hides
+    /// for variables sitting on a bound.
+    bool use_unmasked_error = false;
+
+    /// After this many consecutive line searches that leave the error unchanged
+    /// (relative change <= stall_escape_tolerance), skip the line search once and keep the
+    /// full step (default 0 = off).
+    /// In plain words: if the shorter steps keep getting nowhere, take one full step to break out.
+    std::size_t stall_escape_after = 0;
+
+    /// Relative error change at or below which a line search counts as making no progress.
+    double stall_escape_tolerance = 1.0e-8;
+
+    /// If a line search ends with an error not below the pre-step error, discard it and keep
+    /// the full step (default false = off).
+    /// In plain words: if the shorter step did not help, use the full step after all.
+    bool reject_if_worse = false;
 };
 
 } // namespace Optima
