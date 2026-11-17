@@ -178,6 +178,7 @@ struct MasterSolver::Impl
             tracer.begin(problem.xlower.data(), problem.xupper.data(), (long)problem.xlower.size());
         }
         u.x.noalias() = min(max(u.x, problem.xlower), problem.xupper);
+        exXlo = problem.xlower; exXup = problem.xupper; exD0.resize(0); exR0 = -1.; exC0 = 0.;
         u.p.noalias() = min(max(u.p, problem.plower), problem.pupper);
         uo = u;
         F.initialize(problem);
@@ -219,6 +220,49 @@ struct MasterSolver::Impl
         errorcontrol.execute(uo, u, F, E);
         F.update(u);
         E.update(u, F);
+        extrapolate(u);
+    }
+
+    // Jump ahead (options.jumpahead): when two successive steps point the same way (cosine > 0.99) and shrink
+    // at a steady ratio r in [0.5, 1), try x + (g - 1) d with g = 1/(1 - r), g <= 1000. The jump is skipped if
+    // any variable would cross a bound, and it is kept only if the error falls.
+    Vector exD0, exXlo, exXup;
+    double exR0 = -1., exC0 = 0.;
+    auto extrapolate(MasterVectorRef u) -> void
+    {
+        if(!options.jumpahead) return;
+        const Vector d = u.x - uo.x;
+        const double nd = d.norm();
+        double r = -1., cs = 0.;
+        if(exD0.size() == d.size() && exD0.norm() > 0. && nd > 0.)
+        {
+            r = nd / exD0.norm();
+            cs = d.dot(exD0) / (nd * exD0.norm());
+        }
+        bool fired = false;
+        if(cs > 0.99 && exC0 > 0.99 && r >= 0.5 && r < 1.0 && exR0 >= 0.5 && exR0 < 1.0001)
+        {
+            const double g = 1. / (1. - std::min({r, exR0, 0.9999}));
+            bool inside = g <= 1000.;
+            for(Index i = 0; i < d.size() && inside; i++)
+            {
+                const double xn = u.x[i] + (g - 1.) * d[i];
+                if(xn < exXlo[i] || xn > exXup[i]) inside = false;
+            }
+            if(inside)
+            {
+                const double e0 = E.error();
+                const Vector xkeep = u.x;
+                u.x.noalias() = u.x + (g - 1.) * d;
+                F.update(u);
+                E.update(u, F);
+                if(F.result().succeeded && E.error() < e0) fired = true;
+                else { u.x = xkeep; F.update(u); E.update(u, F); }
+            }
+        }
+        // After a jump the history starts again.
+        if(fired) { exD0.resize(0); exR0 = -1.; exC0 = 0.; }
+        else { exD0 = d; exR0 = r; exC0 = cs; }
     }
 
     auto finalize(MasterState& state) -> void
